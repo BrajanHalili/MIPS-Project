@@ -1,0 +1,168 @@
+.data
+frameBuffer: .space 0x80000 # 512 wide X 256 high pixels
+m: .word 200 #length for square m
+n: .word 150 #length for square n
+c1r: .word 0x00060000 #red color for m
+c1g: .word 0x0000DD00 #green color for m
+c1b: .word 0x000000F1 #blue color for m
+c2r: .word 0x00A10000 #red color for n
+c2g: .word 0x00000600 #green color for n
+c2b: .word 0x000000F1 #blue color for n
+
+.text
+la $t1,frameBuffer #t1 <-frameBuffer
+la $s0,m	#s0 <- addr of m
+lw $s1,0($s0)	#s1 <-m
+la $s0,n	#s0 <- addr of n
+lw $s2,0($s0)	#s2 <-n
+li $t2,0x00FFFF00 # t2 <- yellow
+
+#storing colors for square m
+la $t3,c1r	#t3 <-addr of c1r
+lw $s3,0($t3)	#s3 <- c1r
+la $t3,c1g	#t3<-addr of c1g
+lw $s0,0($t3)	#s0 <- c1g
+or $s3,$s3,$s0  #s3 <-c1r,c1g
+la $t3,c1b	#t3<-addr of c1b
+lw $s0,0($t3)	#s0 <- c1b
+or $s3,$s3,$s0  #s3 <-c1r,c1g,c1b, complete color
+
+#storing colors for square n
+la $t3,c2r	#t3 <- addr of c2r
+lw $s4,0($t3)	#s4<- c2r
+la $t3,c2g	#t3 <- addr of c2g
+lw $s0,0($t3)	#s0 <- c2g
+or $s4,$s4,$s0  #s4 <-c2r,c2g
+la $t3,c2b	#t3 <- addr of c2b
+lw $s0,0($t3) 	#s0 <- c2b
+or $s4,$s4,$s0  #s4 <-c2r,c2g,c2b, complete color
+
+#creating yellow background
+add $t3,$zero,$zero #t3 <-0
+addi $t5,$zero,524289  #t5<-524289
+Loop1: slt $t4,$t3,$t5 #t4 <-1 if t3 < 524289
+beq $t4,$zero,End #End if t3>=524289
+add $t6,$t3,$t1 #t6 <- t3 + t1
+sw $t2,0($t6) #stores yellow in the entire screen
+add $t3,$t3,4 #t3 <- t3 +4 
+j Loop1
+End: addi $t5,$zero,262144 # t5 = 262144
+add $t5,$t5,$t1 #t5 <- t5 + t1, middle pixel
+
+#checks to see if squares have an even number as their length, if m>=n(if n=m, it just prints n), or if either m or n is bigger than 256
+add $t3,$zero,$s1 #t3 <-m
+srl $t3,$t3,1 #shift t3 right by 12
+sll $t3,$t3,1 #shift t3 left by 1
+bne $t3,$s1,Finish # Finish if m is odd
+
+add $t3,$zero,$s2 #t3 <-n
+srl $t3,$t3,1 #shift t3 right by 1
+sll $t3,$t3,1 #shift t3 left by 1
+bne $t3,$s2,Finish # Finish if n is odd
+
+beq $s1,$s2,Done3 #Done3 if m=n, just make the n square
+
+slt $t3,$s1,$s2 #t3<-1 if m<n else 0
+bne $t3,$zero,Finish #Eq if n>=m
+
+addi $t3,$zero,256 #t3 = 256
+bgt  $s1,$t3,Finish #Finish if m >256
+bgt  $s2,$t3,Finish #Finish if n>256
+
+
+# m>n, need to create square m, find the middle pixel, then do calculations to find the address of the top left pixel (starting pixel).
+# Then calculate the offset that will be needed after every line is printed (2048 - (size*4)). Double for loop to print a line, then reset the 
+# counter and go to the new line 
+add $t3,$zero,$s1 #t3<-m
+srl $t3,$t3,1 #shift t3 right by 1, half the length of m
+sll $t4,$t3,2 #t4 <-t3*4
+add $t9,$t5,$zero
+sub $t9,$t9,$t4 #t9 <- middle pixel - t4
+add $t7,$zero,$t3 #t7<-m/2
+Loop2:beq $t7,$zero,End1 #End1 if t7=0
+addi $t9,$t9,-2048 #t9 <- t9 - 2048
+addi $t7,$t7,-1 #t7 <- t7-1
+j Loop2
+End1: add $t7,$t9,$zero #t7 <- t9  the starting pixel of the square
+addi $t7,$t7,1024 #t7 <- t7 + 1024
+add $s7,$t7,$zero # s7 <-t7
+add $t3,$zero,$s1 #t3 <-m, used as width
+#creating the offset after a line of the square is made
+add $t8,$zero,$s1 #t8 <-m
+sll $t8,$t8,2 #t8 <-m*4
+add $t6,$t8,$t8 #t6<-t8*2
+sub $t8,$t8,$t6 #t8 <- -(m*4)
+addi $t8,$t8,2048 #t8 <- 2048 -(m*4), the offset after a line of the square is made
+
+Loop3:beq $t3,$zero,Done1 #Done1 if t3 is 0
+add $t2,$zero,$s1 #t2 <-m, length
+Loop4:beq $t2,$zero,End2 #End2 if t2 is 0, line is drawn
+sw $s3,0($t7) #store the color in pixel t7
+addi $t7,$t7,4 #t7<-t7 +4, next pixel
+addi $t2,$t2,-1 #t2 <- t2-1
+j Loop4
+End2:add $t7,$t7,$t8  #add the offset to reset the pixel counter to the next line
+addi $t3,$t3,-1 #t3 <-t3-1
+j Loop3
+Done1:
+
+# Creating diagonals. s7 and s6 will be the address registers, s7 will be for the top left to bottom right diagonal while s6 will be for top right to 
+# bottom left one. Use t7 from the previous section as the boundary for s7 loop(vt7 is the very last pixel of square m).
+# Then create t4 which is t7 - (size*4) to represent the pixel in the beginning of the last line (bottom left pixel) to serve as the boundary for the 
+# s6 loop. The offsets for each loop are different. 2052 for s7 loop since thats a line + 4 and 2044 for s6 loop since thats a line -4 
+add $s6,$zero,$s1 #s6 <-m
+sll $s6,$s6,2 #s6 <-4*m
+add $s6,$s6,$s7 #s6 <- s6 + s7
+addi $s6,$s6,-4 #s6 <- s6 - 4
+add $t8,$zero,$zero #t8 = 0
+addi $t8,$t8,0x00000000
+aLoop:slt $t0,$s7,$t7 #t0 <- 1 if s7 < t7 else 0
+beq $t0,$zero,Done2 #Done2 if s7 >= t7(the last pixel of square m)
+sw $t8,0($s7) #store black in pixel s7
+addi $s7,$s7,2052 #s7 <-s7 +2052
+j aLoop
+Done2: 
+add $t4,$zero,$s1 #t4<-m
+sll $t4,$t4,2 #t4 <-4*m
+sub $t4,$t7,$t4 #t4 <-t7-t4
+aLoop2:slt $t0,$s6,$t4 #t0 <- 1 if s6 < t4 else 0
+beq $t0,$zero,Done3 #Done3 if s6 >= t4
+sw $t8,0($s6) #store black in pixel s6
+addi $s6,$s6,2044 #s6 <-s6 + 2044
+j aLoop2
+Done3:
+
+#creating the n square, same procedure as the m square
+add $t3,$zero,$s2 #t3<-n
+srl $t3,$t3,1 #shift t3 right by 1, half the length of n
+sll $t4,$t3,2 #t4 <-t3*4
+add $t9,$t5,$zero
+sub $t9,$t9,$t4 #t9 <- middle pixel - t4
+add $t7,$zero,$t3 #t7<-m/2
+Loop5:beq $t7,$zero,End5 #End1 if t7=0
+addi $t9,$t9,-2048 #t9 <- t9 - 2048
+addi $t7,$t7,-1 #t7 <- t7-1
+j Loop5
+End5: add $t7,$t9,$zero #t7 <- t9 the starting pixel of the square
+addi $t7,$t7,1024
+add $t3,$zero,$s2 #t3 <-n, used as width
+#creating the offset after a line of the square is made
+add $t8,$zero,$s2 #t8 <-n
+sll $t8,$t8,2 #t8 <-n*4
+add $t6,$t8,$t8 #t6<-t8*2
+sub $t8,$t8,$t6 #t8 <- -(n*4)
+addi $t8,$t8,2048 #t8 <- 2048 -(n*4), the offset after a line of the square is made
+
+Loop30:beq $t3,$zero,Finish #Done1 if t3 is 0
+add $t2,$zero,$s2 #t2 <-m, length
+Loop10:beq $t2,$zero,End10 #End2 if t2 is 0, line is drawn
+sw $s4,0($t7) #store the color in pixel t7
+addi $t7,$t7,4 #t7<-t7 +4, next pixel
+addi $t2,$t2,-1 #t2 <- t2-1
+j Loop10
+End10:add $t7,$t7,$t8  #add the offset to reset the pixel counter to the next line
+addi $t3,$t3,-1 #t3 <-t3-1
+j Loop30
+
+Finish: li $v0,10 # exit code
+syscall # exit to OS
