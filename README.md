@@ -1,6 +1,6 @@
 # MIPS-Project
 ## Description
-This project creates a 256 pixels high and 512 pixels wide yellow background, a square and its diagonals and another square. Both squares are centered in the middle. The color and size of the squares can be changed.
+This project in MIPS assembly language creates a 256 pixels high and 512 pixels wide yellow background, a square and its diagonals and another square. Both squares are centered in the middle. The color and size of the squares can be changed.
 
 ## Data
 The data for the example:  
